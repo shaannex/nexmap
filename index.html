@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nex Health</title>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.0.1/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.0.1/mapbox-gl.css" rel="stylesheet">
+    <title>Nex Map</title>
+
+    <style>
+        body {
+            margin:0px;
+            padding: 0px;
+            line-height: 1.8;
+        }
+
+        #map {
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .filter-section {
+            position: absolute;
+            z-index: 1;
+            top:10%;
+            margin:10px;
+            background-color: #fff;
+            width: 200px;
+            padding:0.5rem 0.5rem;
+            border-radius: 5px;
+            box-shadow: 2px 2px 0.5rem #222;
+        }
+
+        .filter-title {
+            font-weight: 600;
+        }
+
+        .search-section {
+            position: absolute;
+            z-index: 2;
+            top:0%;
+            margin:10px;
+            background-color: #fff;
+            width: 250px;
+            padding:0.5rem 0.75rem;
+            border-radius: 5px;
+            box-shadow: 2px 2px 0.5rem #222;
+            
+        }
+
+        .search-section .search-results {
+            display: none;
+        }
+        .search-section.active .search-results{
+            display: block;
+            width: 350px;
+        }
+
+        .form-control {
+            border-radius: 2px;
+            line-height: 1.8;
+            font-size: 1rem;
+            border:1px solid #ddd;
+            width: 100%;
+        }
+
+        .search-results {
+            position: absolute;
+            left: 0;
+            top:109%;
+            z-index: 2;
+            box-shadow: 2px 2px 0.5rem #222;
+            width: 100%;
+            height: 200px;
+            overflow-x: hidden;
+            overflow-y: auto;
+            background-color: #fff;
+            border-radius: 2px;
+        }
+
+        .search-list {
+            list-style: none;
+            margin: 0;
+            padding:0.25rem 0.25rem;
+        }
+
+        .list-item {
+            padding:0rem 0.25rem;
+            white-space: nowrap;
+            overflow:hidden;
+            text-overflow: ellipsis;
+            cursor: pointer;
+            color:#464B50;
+        }
+
+        .list-item:hover {
+            background-color: #ddd;
+        }
+
+        /* popup */
+        .mapboxgl-popup-close-button {
+            color:#fff;
+            font-size:16px;
+        }
+
+        .mapboxgl-popup-content {
+            padding: 0;
+            width: 250px;
+        }
+
+        .popup-header {
+            font-size: 18px;
+            font-weight: 600;
+            background-color: #464B50;
+            color:#fff;
+            text-align: center;
+            padding: 0.25rem;
+        }
+
+        .popup-body {
+            padding:0 0.5rem;
+        }
+
+        .popup-item {
+            display: flex;
+            justify-content: space-between;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div id="map"></div>
+
+        <div class="search-section" id="search-container">
+            <div class="input-group">
+                <input type="text" class="form-control" placeholder="Try Location Name" id="name-search">
+            </div>
+
+            <div class="search-results">
+                <ul class="search-list" id="search-list">
+                </ul>
+            </div>
+        </div>
+        <div class="filter-section">
+            <div class="filter-title">FILTER BY</div>
+
+            <div class="input-group">
+                <input type="radio" name="status" id="all" class="status-filter" checked>
+                <label for="default">All</label>
+            </div>
+
+            <div class="input-group">
+                <input type="radio" name="status" id="FALSE" class="status-filter">
+                <label for="FALSE">Inactive</label>
+            </div>
+
+            <div class="input-group">
+                <input type="radio" name="status" id="TRUE" class="status-filter">
+                <label for="TRUE">Active</label>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://npmcdn.com/csv2geojson@latest/csv2geojson.js"></script>
+    <script>
+        var popup;
+        let imageData = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAA3QAAAN0BcFOiBwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAJASURBVFiFrZYxS1tRFMd/JwlKglCqqJtg3aSCYgahg7t0yyiuIlS6+w0KTvkU1il0E6QI0kCHOhS66JBBcBERg7iUyHHICTxv7nu598YDh+Td8z//88u9ycsTVSU0ROQd8AmoZxLgTybbqtoNNlXVoAQawC2gI/IWaAT7BgyeAY4CBrt5BMyMBQDMAzcJwwd5A8yPA9AaYf7DsgiylQQAbOcY/gKWPfplq/l6tqMAgDng3mP0DSiZZgP4arlhayXTuH33wFwMwI7H5DdQBt7nHE3LamXTuvWdGICmx2DdascF531smnVPrRkD0Haau4AAKwHf/BXTdp31tm9WCSdEpAysOssX2ieru3pP1E174ayvmverGAKgf4ZuTNrr/wCAgWbSUxv2zjmCE15v35M1fwCeyd/+Z9OUrSdbOwk6AoufznUN2FTVDv0vaF40TbNpPUWehTuw5vl0V0AVmKD/W+9laj1bmzDNlad/LeZXIMCdx+Q7MGWaWeCz5aytTZnG7bsDJPZWfOgxUqADbAHVjLZqa52cnsOU/4Jp4CHHcLDtfy17BboHYDoawCAOCoxD86BwxgiAGuM/D9SSAQxidwyA3ZH+AQAV4DJh+CVQGRvAIBoJAEEPpkEABnEeMfw82DcCYInh+7svn4ClNwcwiP0AgP0oz0gAAc4Khp+Rc8t9EwCDWAQePcMfgcVov9gGg9jzAOwleSUCCHCaGX4au/WDFDOMDhFZAP7Z5UdVvU7xqSRNB1T1WkS+DN6n+rwAIspnMfhtqJwAAAAASUVORK5CYII=";
+        var statusRadios = document.querySelectorAll(".status-filter");
+        
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZGF1ZGk5NyIsImEiOiJjanJtY3B1bjYwZ3F2NGFvOXZ1a29iMmp6In0.9ZdvuGInodgDk7cv-KlujA';
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/light-v10',
+            center: [-100.486052, 37.830348],
+            zoom: 2
+        });
+
+        // add zoom controls
+        var navControl = new mapboxgl.NavigationControl();
+        map.addControl(navControl)
+        // 
+        map.on("load", function(e) {
+            map.loadImage(imageData, function(error, image) {
+                if(error) console.log(error);
+
+                map.addImage('marker', image, {sdf:true});
+            });
+            
+            // locations data
+            map.addSource('locations', {
+                type:'geojson',
+                data:{"type":"FeatuerCollection", "features":[]},
+                cluster:true,
+                cluster:true,
+                clusterRadius:50,
+                clusterMaxZoom:11,
+            });
+
+            map.addLayer({
+                  id: "csvData-cluster",
+                  type: "circle",
+                  source: 'locations',
+                  filter: ['has', 'point_count'],
+                  paint: {
+                    "circle-radius": 18,
+                    "circle-stroke-width": 0,
+                    "circle-opacity": 0.8,
+                    "circle-stroke-opacity": 0.8,
+                    "circle-color":"#17C5DD",
+                  },
+            });
+
+            map.addLayer({
+                  id: "cluster-count",
+                  type: "symbol",
+                  source: 'locations',
+                  filter: ["has", "point_count"],
+                  paint:{
+                    'text-color':'white'
+                  },
+                  layout: {
+                    "text-field": "{point_count}",
+                    "text-font": [
+                      "DIN Offc Pro Medium",
+                      "Arial Unicode MS Bold",
+                    ],
+                    "text-size": 14,
+                    "text-allow-overlap": true, // comment this out to remove overlapping text
+                  },
+            });
+
+            // unclustered
+            map.addLayer({
+                id: "csvData-uncluster",
+                type: "symbol",
+                source: 'locations',
+                filter: ['!', ['has', 'point_count']],
+                layout:{
+                  'icon-image':'marker',
+                },
+                paint: {
+                  "icon-color": [
+                      "match",
+                      ["get", "inactive"],
+                      "TRUE",
+                      "#FF596F",
+                      "FALSE",
+                      "#464B50",
+                      "#464B50"
+                    ]
+                }
+            });
+
+
+            fetch("locations.csv")
+            .then(res => res.text())
+            .then(data => {
+                makeGeoJSON(data);
+            })
+            .catch(err => {
+                console.error(err);
+            });
+
+
+            // click on clusters
+            map.on("click", "csvData-cluster", function (e) {
+                const features = map.queryRenderedFeatures(e.point, {
+                    layers: ['csvData-cluster']
+                });
+
+
+                const clusterId = features[0].properties.cluster_id;
+                map.getSource('locations').getClusterExpansionZoom(
+                    clusterId,
+                    (err, zoom) => {
+                        if (err) return;
+                        
+                        map.easeTo({
+                            center: features[0].geometry.coordinates,
+                            zoom: zoom
+                        });
+                    }
+                );
+            });
+
+            // hover on clusters
+            map.on('mouseenter', 'csvData-cluster', mouseEnter);
+            map.on('mouseleave', 'csvData-cluster', mouseLeave);
+
+            map.on('mouseenter', 'csvData-uncluster', mouseEnter);
+            map.on('mouseleave', 'csvData-uncluster', mouseLeave);
+
+            // 
+            map.on('click',"csvData-uncluster", function(e) {
+                if(e.features.length > 0) {
+                    let feature = e.features[0];
+
+                    let content = `
+                    <div class="popup-content">
+                        <div class="popup-header">${feature.properties['Location Name']}</div>
+
+                        <div class="popup-body">
+                            <div class="popup-item">
+                                <b>Phone Number</b>
+                                ${feature.properties['phone_number']}
+                            </div>
+
+                            <div class="popup-item">
+                                <b>Location Id</b>
+                                ${feature.properties['Location Id']}
+                            </div>
+
+                            <div class="popup-item">
+                                <b>Active Status</b>
+                                ${feature.properties['inactive']}
+                            </div>
+                        </div>
+                    </div>`;
+
+                    popup = new mapboxgl.Popup()
+                        .setHTML(content)
+                        .setLngLat([...feature.geometry.coordinates])
+                        .addTo(map);
+                }
+            });
+
+            function mouseEnter(e) {
+                map.getCanvas().style.cursor = "pointer";
+            }
+
+            function mouseLeave(e) {
+                map.getCanvas().style.cursor = "";
+            }
+
+
+            // filter status
+            statusRadios.forEach(statusElement => {
+                statusElement.onclick = function(e) {
+                    console.log("click");
+
+                    let status = e.target.id;
+                    console.log(status);
+
+                    let locations;
+                    
+                    if(status == 'all') {
+                        locations = JSON.parse(JSON.stringify(locationsData));
+                    } else {
+                        locations = filterLocationByStatus(status);
+
+                        locations = {"type":"FeatureCollection", "features":[...locations]}
+                    }
+
+                    map.getSource('locations').setData(locations);                   
+                }
+            });
+        });
+
+
+        function makeGeoJSON(csvData) {
+            csv2geojson.csv2geojson(
+                csvData,
+                {
+                    latfield: "Latitude",
+                    lonfield: "Longitude",
+                    delimiter: ",",
+                },
+                function (err, data) {
+                    console.log(data);
+                    locationsData = data;
+                    map.getSource('locations').setData(data);
+                }
+            );
+        }
+
+
+        var searchInput = document.getElementById("name-search");
+        var searchResultList = document.getElementById("search-list");
+        var searchContainer = document.getElementById("search-container");
+        searchInput.oninput = function(e) {
+            let value = e.target.value;
+            let results = [];
+
+            if(value != "") {
+                value = value.toLowerCase();
+                results = searchLocationByName(value);
+            } else {
+                results = []
+            }
+
+            // display the container
+            if(!searchContainer.classList.contains("active")) {
+                searchContainer.classList.add("active");
+            }
+
+            searchResultList.innerHTML = "";
+            // update the list items
+            updateListItems(results);
+        }
+
+        function searchLocationByName(query) {
+            // binary search
+            return locationsData.features.filter(location => {
+                let locationName = (location.properties['Location Name']).toLowerCase();
+
+                if(locationName.includes(query)) {
+                    return location;
+                }
+
+                return false;
+            });
+        }
+
+        function updateListItems(locations) {
+            if(locations.length == 0) {
+                searchResultList.innerHTML = `<p>No matching Location Found! <p>`
+                return;
+            }
+
+            if(locations.length > 15) {
+                locations = locations.slice(0, 15);
+            }
+
+
+            // create the list items
+            let listItems = getListItems(locations);
+            searchResultList.append(listItems);
+        }
+
+        function getListItems(locations) {
+            let docFragment = document.createDocumentFragment();
+            locations.forEach(location => {
+                let listItem = createListItem(location);
+                docFragment.append(listItem);
+            });
+
+            return docFragment;
+        }
+
+        function createListItem(location) {
+            let listItem = document.createElement("li");
+            listItem.classList.add("list-item");
+            
+            listItem.setAttribute("data-id", location.properties['Location Id']);
+
+            listItem.innerHTML = location.properties['Location Name'];
+            listItem.addEventListener("click", function(e) {
+                console.log(location);
+
+                flyTo([...location.geometry.coordinates]);
+                searchContainer.classList.remove('active');
+                searchInput.value = location.properties['Location Name'];
+            });
+
+            return listItem;
+        }
+
+        function flyTo(coordinates) {
+            map.flyTo({
+                center:coordinates, 
+                zoom:15
+            });
+        }
+
+
+        function filterLocationByStatus(status) {
+            return locationsData.features.filter(feature => feature.properties.inactive == status);
+        }
+    </script>
+</body>
+</html>
